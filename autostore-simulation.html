@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoStore – Fire Protection</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap');
+
+  :root {
+    --blue:#00c8ff; --orange:#ff6a00; --white:#e8f4ff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background:#080e18;
+    font-family:'Barlow',sans-serif;
+    color:var(--white);
+    min-height:100vh;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    overflow:hidden; user-select:none;
+  }
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,200,255,0.03) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,200,255,0.03) 1px,transparent 1px);
+    background-size:44px 44px; pointer-events:none;
+  }
+
+  .header {
+    position:fixed; top:0; left:0; right:0;
+    padding:14px 36px;
+    display:flex; justify-content:space-between; align-items:center;
+    z-index:100;
+  }
+  .logo { font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:3px; color:var(--blue); opacity:.6; }
+  .status-badge {
+    font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:2px;
+    padding:4px 11px; border:1px solid var(--orange); color:var(--orange); border-radius:2px;
+    animation:blink 2s ease-in-out infinite;
+  }
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+  .scene-wrapper {
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+    padding:62px 20px 24px;
+  }
+  .title-block { text-align:center; }
+  .title-block h1 { font-weight:900; font-size:clamp(14px,2.3vw,24px); letter-spacing:6px; text-transform:uppercase; }
+  .title-block p  { font-weight:300; font-size:11px; letter-spacing:4px; text-transform:uppercase; color:var(--blue); margin-top:3px; opacity:.75; }
+
+  .controls-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; }
+  .col-selector { display:flex; gap:4px; align-items:center; }
+  .col-selector label { font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,.3); text-transform:uppercase; margin-right:4px; }
+  .col-btn {
+    width:28px; height:28px; border-radius:3px;
+    border:1px solid rgba(0,200,255,.2); background:transparent;
+    color:rgba(0,200,255,.45); font-family:'Share Tech Mono',monospace; font-size:11px;
+    cursor:pointer; transition:all .15s;
+  }
+  .col-btn:hover { background:rgba(0,200,255,.08); }
+  .col-btn.selected { background:rgba(0,200,255,.18); border-color:var(--blue); color:var(--blue); box-shadow:0 0 7px rgba(0,200,255,.2); }
+
+  .btn { font-family:'Barlow',sans-serif; font-weight:600; font-size:11px; letter-spacing:3px; text-transform:uppercase; padding:8px 20px; border-radius:2px; cursor:pointer; border:none; transition:all .2s; }
+  .btn-primary { background:var(--blue); color:#08121c; }
+  .btn-primary:hover { background:#40d8ff; box-shadow:0 0 16px rgba(0,200,255,.4); }
+  .btn-primary:disabled { opacity:.3; cursor:default; }
+  .btn-secondary { background:transparent; border:1px solid rgba(255,255,255,.18); color:rgba(255,255,255,.5); }
+  .btn-secondary:hover { border-color:rgba(255,255,255,.4); color:#fff; }
+
+  #simCanvas { display:block; }
+
+  .stats-panel { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .stat-card { background:rgba(26,35,50,.8); border:1px solid rgba(0,200,255,.1); border-radius:4px; padding:9px 12px; text-align:center; min-width:100px; }
+  .stat-value { font-family:'Share Tech Mono',monospace; font-size:18px; color:var(--blue); display:block; }
+  .stat-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,.28); margin-top:2px; display:block; }
+
+  .flood-bar { height:3px; background:rgba(255,255,255,.05); border-radius:2px; overflow:hidden; }
+  .flood-bar-fill { height:100%; width:0%; background:linear-gradient(90deg,#00c8ff,#0050ff); border-radius:2px; transition:width .25s ease; box-shadow:0 0 6px rgba(0,200,255,.5); }
+
+  .corner-glow { position:fixed; width:240px; height:240px; border-radius:50%; filter:blur(80px); pointer-events:none; opacity:.07; }
+  .glow-tl { top:-40px; left:-40px; background:var(--blue); }
+  .glow-br { bottom:-40px; right:-40px; background:#0040ff; }
+</style>
+</head>
+<body>
+<div class="corner-glow glow-tl"></div>
+<div class="corner-glow glow-br"></div>
+
+<header class="header">
+  <div class="logo">FIRE PROTECTION · AUTOSTORE MONITOR SIM v5.0</div>
+  <div class="status-badge" id="statusBadge">■ SYSTEM BEREIT</div>
+</header>
+
+<div class="scene-wrapper">
+  <div class="title-block">
+    <h1>AutoStore Fire Protection</h1>
+    <p>Löschmonitor auf Grid · Seitenansicht · Parabolischer Wasserstrahl</p>
+  </div>
+
+  <div class="controls-row">
+    <div class="col-selector">
+      <label>Zielspalte</label>
+      <button class="col-btn" onclick="selectCol(0,this)">1</button>
+      <button class="col-btn" onclick="selectCol(1,this)">2</button>
+      <button class="col-btn" onclick="selectCol(2,this)">3</button>
+      <button class="col-btn selected" onclick="selectCol(3,this)">4</button>
+      <button class="col-btn" onclick="selectCol(4,this)">5</button>
+      <button class="col-btn" onclick="selectCol(5,this)">6</button>
+      <button class="col-btn" onclick="selectCol(6,this)">7</button>
+      <button class="col-btn" onclick="selectCol(7,this)">8</button>
+    </div>
+  </div>
+  <div class="controls-row">
+    <button class="btn btn-primary" id="startBtn" onclick="startSim()">▶ LÖSCHUNG STARTEN</button>
+    <button class="btn btn-secondary" onclick="resetSim()">↺ Reset</button>
+  </div>
+
+  <canvas id="simCanvas"></canvas>
+
+  <div class="flood-bar" id="floodBarWrap"><div class="flood-bar-fill" id="floodBar"></div></div>
+
+  <div class="stats-panel" id="statsPanel">
+    <div class="stat-card"><span class="stat-value" id="statTarget">C4</span><span class="stat-label">Zielspalte</span></div>
+    <div class="stat-card"><span class="stat-value" id="statBoxes">0 / 0</span><span class="stat-label">Behälter voll</span></div>
+    <div class="stat-card"><span class="stat-value" id="statLevel">0%</span><span class="stat-label">Füllgrad Ø</span></div>
+    <div class="stat-card"><span class="stat-value" id="statTime">0s</span><span class="stat-label">Laufzeit</span></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  LAYOUT  –  SIDE VIEW
+//  Columns left→right, rows top→bottom (water fills from top)
+//  Monitor sits ON TOP of the grid rail, in the center column gap
+// ═══════════════════════════════════════════════════════════════
+const COLS     = 8;
+const ROWS     = 6;
+const BOX_W    = 76;
+const BOX_H    = 58;
+const GAP      = 4;
+
+// Grid origin
+const GRID_L   = 14;          // left edge of column 0
+const GRID_T   = 130;         // top edge of row 0  (more space above for arc)
+
+// Monitor sits on a rail at the very top of the grid
+// Its pivot (barrel hinge) is centered horizontally between col 3 and col 4
+const MONITOR_COL = 3.5;      // float col index
+const RAIL_Y      = GRID_T - 18;  // rail surface y
+const PIVOT_Y     = RAIL_Y - 10;  // barrel pivot just above rail (was -20)
+
+const CW = GRID_L * 2 + COLS * BOX_W + (COLS - 1) * GAP;
+const CH = GRID_T + ROWS * BOX_H + (ROWS - 1) * GAP + 24;
+
+const canvas = document.getElementById('simCanvas');
+const ctx    = canvas.getContext('2d');
+canvas.width  = CW;
+canvas.height = CH;
+document.getElementById('floodBarWrap').style.width = CW + 'px';
+document.getElementById('statsPanel').style.width   = CW + 'px';
+
+// ── Box geometry ──────────────────────────────────────────────
+const bL = c => GRID_L + c * (BOX_W + GAP);
+const bT = r => GRID_T + r * (BOX_H + GAP);
+const bCX = c => bL(c) + BOX_W / 2;
+const bCY = r => bT(r) + BOX_H / 2;
+
+// ── Monitor pivot ─────────────────────────────────────────────
+const pivotX = () => GRID_L + MONITOR_COL * (BOX_W + GAP);
+const pivotY = () => PIVOT_Y;
+
+// ═══════════════════════════════════════════════════════════════
+//  PHYSICS  –  parabola from NOZZLE TIP, landing at top of target
+// ═══════════════════════════════════════════════════════════════
+const G = 680; // px/s²
+
+// Barrel geometry constants (must match drawMonitor exactly)
+const BARREL_LEN  = 60;   // px from pivot to start of nozzle cone
+const NOZZLE_LEN  = 13;   // px length of nozzle cone
+const BARREL_TOTAL = BARREL_LEN + NOZZLE_LEN; // total from pivot to tip
+
+// Compute the nozzle tip world position given a barrel angle
+function nozzleTip(angle) {
+  const cx = pivotX(), cy = pivotY();
+  return {
+    x: cx + Math.cos(angle) * BARREL_TOTAL,
+    y: cy + Math.sin(angle) * BARREL_TOTAL
+  };
+}
+
+function computeJet(col) {
+  // Impact target: top-center of first box in target column
+  const tx = bCX(col);
+  const ty = bT(0);
+
+  // We need to find angle such that:
+  // 1. Barrel points roughly toward target
+  // 2. Nozzle tip is the launch origin
+  // 3. A parabola from that tip lands on (tx, ty)
+  //
+  // Iterative approach: start with pivot-based angle, then refine
+  const cx = pivotX(), cy = pivotY();
+
+  // Initial angle estimate from pivot to target
+  const dx0 = tx - cx, dy0 = ty - cy;
+  const arcLift = Math.max(10, Math.abs(dx0) * 0.08 + 8);
+  const vy0est  = -Math.sqrt(2 * G * arcLift);
+
+  // Solve T for pivot-based parabola (estimate)
+  let a = 0.5*G, b = vy0est, c2 = cy - ty;
+  let disc = b*b - 4*a*c2;
+  let T = (-b + Math.sqrt(Math.max(0,disc))) / (2*a);
+  if (T < 0.05) T = 0.6;
+  const vx0est = dx0 / T;
+  const angleEst = Math.atan2(vy0est, vx0est);
+
+  // Now compute actual nozzle tip for this angle
+  const tip = nozzleTip(angleEst);
+
+  // Recompute parabola from actual tip to target
+  const dx = tx - tip.x;
+  const dy = ty - tip.y;
+
+  const arcLift2 = Math.max(8, Math.abs(dx) * 0.07 + 6);
+  const vy = -Math.sqrt(2 * G * arcLift2);
+
+  a = 0.5*G; b = vy; c2 = tip.y - ty;
+  disc = b*b - 4*a*c2;
+  T = (-b + Math.sqrt(Math.max(0,disc))) / (2*a);
+  if (T < 0.05) T = 0.6;
+
+  const vx = dx / T;
+  const angle = Math.atan2(vy, vx);
+
+  // Re-derive tip with refined angle
+  const tipFinal = nozzleTip(angle);
+
+  return {
+    px: tipFinal.x,   // jet STARTS at nozzle tip
+    py: tipFinal.y,
+    vx, vy, T,
+    angle             // barrel rotation angle
+  };
+}
+
+function jetPt(t, j) {
+  return {
+    x: j.px + j.vx * t,
+    y: j.py + j.vy * t + 0.5 * G * t * t
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+let targetCol  = 3;
+let fillLevels = [];
+let running    = false;
+let startTime  = null;
+let animId     = null;
+let particles  = [];
+let splashPts  = [];
+let lastPTime  = 0;
+let lastFrameT = null;
+let dripCD     = {};
+let barrelAngle = 0;
+let overflowStartTime = null;
+let tiltAngle  = 0;
+let tiltActive = false;
+let staticAnimId = null;  // tracks the post-completion static render loop
+let filmReachedFloorTime = null; // timestamp when film first hit the floor
+
+const FILL_SPEED   = 0.30;
+const OVERFLOW_THR = 91;
+
+// ═══════════════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════════════
+function selectCol(c, btn) {
+  if (running) return;
+  targetCol = c;
+  document.querySelectorAll('.col-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('statTarget').textContent = `C${c+1}`;
+  barrelAngle = computeJet(c).angle;
+  drawFrame(false, null);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT / RESET
+// ═══════════════════════════════════════════════════════════════
+function initState() {
+  fillLevels = [];
+  for (let c = 0; c < COLS; c++) fillLevels[c] = Array(ROWS).fill(0);
+  particles = []; splashPts = []; dripCD = {};
+  overflowStartTime = null;
+  tiltAngle  = 0;
+  tiltActive = false;
+  filmReachedFloorTime = null;
+}
+
+function resetSim() {
+  running = false;
+  if (animId) cancelAnimationFrame(animId);
+  if (staticAnimId) { cancelAnimationFrame(staticAnimId); staticAnimId = null; }
+  initState(); lastFrameT = null;
+  document.getElementById('startBtn').disabled = false;
+  setSBadge('■ SYSTEM BEREIT', 'var(--orange)', 'var(--orange)');
+  document.getElementById('floodBar').style.width = '0%';
+  document.getElementById('statBoxes').textContent = '0 / 0';
+  document.getElementById('statLevel').textContent = '0%';
+  document.getElementById('statTime').textContent  = '0s';
+  barrelAngle = computeJet(targetCol).angle;
+  drawFrame(false, null);
+}
+
+function startSim() {
+  if (running) return;
+  running = true; startTime = Date.now();
+  document.getElementById('startBtn').disabled = true;
+  setSBadge('◉ MONITOR AKTIV', '#ff6a00', '#ff6a00');
+  loop();
+}
+
+function setSBadge(txt, color, border) {
+  const el = document.getElementById('statusBadge');
+  el.textContent = txt; el.style.color = color; el.style.borderColor = border;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ═══════════════════════════════════════════════════════════════
+function loop() {
+  if (!running) return;
+  animId = requestAnimationFrame(loop);
+
+  const now = performance.now();
+  const dt  = lastFrameT ? Math.min((now - lastFrameT) / 1000, 0.05) : 0.016;
+  lastFrameT = now;
+
+  const j = computeJet(targetCol);
+  barrelAngle = j.angle;
+
+  spawnJetParticles(j);
+  if (Math.random() < 0.4) spawnSplash(j);
+  updateParticles(dt);
+
+  // ── Water physics: cascading trickle model with travel delay ─
+  //
+  // Each lower box has a travel-time delay before it starts receiving
+  // water. The film needs ~1.5s per level to travel down the outside.
+  // Box 2 starts filling after 1.5s, Box 3 after 3s, etc.
+
+  const JET_RATE     = 0.7;   // % box-volume/s into Box 1 (halved for slower fill)
+  const TRICKLE_BASE = 0.32;  // fraction of film dripping into each box
+  const FLOOR_LOSS   = 0.06;  // fraction lost per level
+  const TRAVEL_DELAY = 1.5;   // seconds of delay per level below Box 1
+
+  const elapsed = startTime ? (Date.now() - startTime) / 1000 : 0;
+
+  // Step 1: Box 1 always fills at full jet rate
+  {
+    const lvl = fillLevels[targetCol][0];
+    const add = Math.min(JET_RATE * dt, (100 - lvl) / 100);
+    fillLevels[targetCol][0] = Math.min(100, lvl + add * 100);
+  }
+
+  // Step 2: once Box 1 overflows, cascade film down with per-row delay
+  if (fillLevels[targetCol][0] >= OVERFLOW_THR) {
+    // Time at which Box 1 first overflowed (approximate via fill level)
+    // We track overflow start time separately
+    if (!overflowStartTime) overflowStartTime = Date.now();
+    const overflowElapsed = (Date.now() - overflowStartTime) / 1000;
+
+    spawnWallFilm(targetCol, 0);
+
+    let film = 1.0;
+
+    for (let r = 1; r < ROWS; r++) {
+      if (film < 0.002) break;
+
+      const rowDelay = TRAVEL_DELAY * r;
+      if (overflowElapsed < rowDelay) {
+        spawnWallFilm(targetCol, r - 1);
+        film = film * (1 - FLOOR_LOSS);
+        continue;
+      }
+
+      // Film has reached this row – if it's the last row, record floor arrival
+      if (r === ROWS - 1 && !filmReachedFloorTime) {
+        filmReachedFloorTime = Date.now();
+      }
+
+      const lvl    = fillLevels[targetCol][r];
+      const isFull = lvl >= 99.5;
+      const tFrac  = isFull ? 0 : TRICKLE_BASE;
+
+      if (!isFull) {
+        const drip = film * tFrac * JET_RATE * dt;
+        fillLevels[targetCol][r] = Math.min(100, lvl + drip * 100);
+      }
+
+      film = film * (1 - tFrac) * (1 - FLOOR_LOSS);
+      spawnWallFilm(targetCol, r - 1);
+    }
+  }
+
+  let done = fillLevels[targetCol].every(l => l >= 99.5);
+
+  // ── Structural failure tilt ──────────────────────────────
+  // Fire weakens the box over time. Structural failure starts once the
+  // fire has been burning long enough AND the fire box has significant heat.
+  // Trigger: fire box fill level < 40% AND simulation running for > 5s
+  // Once triggered, tilt grows until it hits the neighbour gap limit.
+  // Tilt NEVER resets – the deformed stack stays tilted permanently.
+  const MAX_TILT_RAD = 4.5 * Math.PI / 180;
+  const fireBoxLevel = fillLevels[targetCol][FIRE_ROW];
+  const fireBoxIntensity = Math.max(0, 1 - fireBoxLevel / 60);
+  const simElapsed = startTime ? (Date.now() - startTime) / 1000 : 0;
+
+  // Structural failure triggers after 5s of burning (fire still active)
+  if (!tiltActive && fireBoxIntensity > 0.3 && simElapsed > 5) {
+    tiltActive = true;
+  }
+
+  if (tiltActive && tiltAngle < MAX_TILT_RAD) {
+    // Tilt grows faster when fire is intense, slows as fire is extinguished
+    // But never reverses – ratchet mechanic
+    const tiltSpeed = 0.008 * Math.max(0.15, fireBoxIntensity); // rad/s
+    tiltAngle = Math.min(MAX_TILT_RAD, tiltAngle + tiltSpeed * dt);
+  }
+
+  drawFrame(true, j);
+  updateStats();
+  if (startTime)
+    document.getElementById('statTime').textContent = Math.round((Date.now()-startTime)/1000)+'s';
+
+  if (done) {
+    running = false;
+    setSBadge('✓ ABGESCHLOSSEN', '#00ff88', '#00ff88');
+    // Keep rendering static frame so monitor stays visible permanently
+    const finalJ = j;
+    function staticRender() {
+      drawFrame(false, finalJ);
+      updateStats();
+      staticAnimId = requestAnimationFrame(staticRender);
+    }
+    staticRender();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PARTICLES
+// ═══════════════════════════════════════════════════════════════
+function spawnJetParticles(j) {
+  const now = performance.now();
+  if (now - lastPTime < 16) return;
+  lastPTime = now;
+  for (let i = 0; i < 7; i++) {
+    const t0 = (i / 7) * 0.92;
+    const p  = jetPt(t0 * j.T, j);
+    const dt2 = 0.007;
+    const p2 = jetPt((t0 + dt2) * j.T, j);
+    const spd = Math.hypot(p2.x-p.x, p2.y-p.y) / (dt2 * j.T);
+    const ang = Math.atan2(p2.y-p.y, p2.x-p.x);
+    const sc  = (Math.random()-0.5) * 0.12;
+    particles.push({
+      x: p.x+(Math.random()-.5)*2, y: p.y+(Math.random()-.5)*2,
+      vx: Math.cos(ang+sc)*spd*.78, vy: Math.sin(ang+sc)*spd*.78,
+      life:0.65+Math.random()*.2, maxLife:0.7, r:1.3+Math.random()*2.2, drip:false
+    });
+  }
+}
+
+function spawnSplash(j) {
+  const tx = bCX(targetCol), ty = bT(0);
+  for (let i = 0; i < 5; i++) {
+    const ang = -Math.PI + Math.random() * Math.PI;
+    const spd = 30 + Math.random() * 65;
+    splashPts.push({
+      x: tx+(Math.random()-.5)*5, y: ty,
+      vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - 20,
+      life:0.38+Math.random()*.25, maxLife:0.45, r:1+Math.random()*1.8
+    });
+  }
+}
+
+// Wall-film particles – fall along the side of the box face
+function spawnWallFilm(c, r) {
+  const key = `wf${c}${r}`, now = Date.now();
+  if (dripCD[key] && now - dripCD[key] < 80) return;
+  dripCD[key] = now;
+
+  const x0 = bL(c);
+  const y0 = bT(r);
+  const filmH = BOX_H + GAP; // height of one box + gap
+
+  // Spawn several film streaks at different x positions across box width
+  const count = 4 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    const fx = x0 + 4 + Math.random() * (BOX_W - 8);
+    const fy = y0 + Math.random() * BOX_H * 0.3; // start near top of box
+    particles.push({
+      x: fx, y: fy,
+      vx: (Math.random() - 0.5) * 4,
+      vy: 55 + Math.random() * 40,   // downward velocity
+      life: 0.55 + Math.random() * 0.3,
+      maxLife: 0.7,
+      r: 1.2 + Math.random() * 1.4,
+      film: true,   // flag: render as thin streak not dot
+      filmH: filmH * (0.4 + Math.random() * 0.5)
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (const p of particles) { p.x+=p.vx*dt; p.y+=p.vy*dt+0.5*G*dt*dt; p.vy+=G*dt; p.life-=dt; }
+  particles = particles.filter(p=>p.life>0);
+  for (const s of splashPts) { s.x+=s.vx*dt; s.y+=s.vy*dt+0.5*G*dt*dt; s.vy+=G*dt; s.life-=dt; }
+  splashPts = splashPts.filter(s=>s.life>0);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DRAW
+// ═══════════════════════════════════════════════════════════════
+function drawFrame(active, j) {
+  ctx.clearRect(0, 0, CW, CH);
+  drawFireGlow();   // ambient fire light behind everything
+  drawRail();
+  drawGrid();
+  if (active && j) { drawJetArc(j); drawParticles(); drawSplash(); }
+  drawOverflow();
+  drawMonitor(active);
+}
+
+// ── Ambient fire glow (behind grid) ──────────────────────────
+function drawFireGlow() {
+  if (targetCol < 0) return;
+  const fireLevel = fillLevels[targetCol][FIRE_ROW] || 0;
+  const intensity = Math.max(0, 1 - fireLevel / 60);
+  if (intensity <= 0) return;
+
+  ctx.save();
+  const cx2 = bCX(targetCol);
+  const cy2 = bT(FIRE_ROW) + BOX_H * 0.5;
+  const now2 = Date.now();
+  const flicker = 0.85 + Math.sin(now2/80)*0.08 + Math.sin(now2/130)*0.07;
+  const radius = (BOX_W * 2.2) * intensity * flicker;
+
+  const fg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, radius);
+  fg.addColorStop(0,   `rgba(255,120,0,${0.22 * intensity * flicker})`);
+  fg.addColorStop(0.4, `rgba(255,60,0,${0.12 * intensity})`);
+  fg.addColorStop(1,   'rgba(255,30,0,0)');
+  ctx.fillStyle = fg;
+  ctx.beginPath(); ctx.arc(cx2, cy2, radius, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// ── Top rail ──────────────────────────────────────────────────
+function drawRail() {
+  // Full-width horizontal rail bar at top of grid
+  const rx = GRID_L - 4, ry = RAIL_Y, rw = CW - GRID_L * 2 + 8, rh = 10;
+  const rg = ctx.createLinearGradient(0, ry, 0, ry+rh);
+  rg.addColorStop(0,'#4a5a6a'); rg.addColorStop(.4,'#2e3e50'); rg.addColorStop(1,'#1a2535');
+  ctx.fillStyle = rg;
+  rr(rx, ry, rw, rh, 3); ctx.fill();
+  ctx.strokeStyle='#3a4a5c'; ctx.lineWidth=1;
+  rr(rx, ry, rw, rh, 3); ctx.stroke();
+  // Highlight stripe
+  ctx.fillStyle='rgba(160,200,240,0.08)';
+  rr(rx+2, ry+1, rw-4, 3, 1); ctx.fill();
+
+  // Rail mounting bolts
+  for (let i = 0; i < COLS; i++) {
+    const bx = bCX(i);
+    ctx.fillStyle='#2a3848';
+    ctx.beginPath(); ctx.arc(bx, ry+5, 3, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#4a5a6a'; ctx.lineWidth=.8;
+    ctx.beginPath(); ctx.arc(bx, ry+5, 3, 0, Math.PI*2); ctx.stroke();
+  }
+}
+
+// ── Grid (boxes) ─────────────────────────────────────────────
+const FIRE_ROW = ROWS - 2;  // second from bottom, module-level constant
+
+function drawGrid() {
+  const now2 = Date.now();
+
+  // Compute tilt transform for boxes ABOVE the fire box
+  // Pivot = top-center of the fire box (that's where the collapse hinge is)
+  const pivotX2 = bL(targetCol) + BOX_W / 2;
+  const pivotY2 = bT(FIRE_ROW);   // TOP edge of fire box = hinge point
+
+  // Small structural creak flicker once tilt is active
+  const creakFlicker = tiltActive
+    ? Math.sin(Date.now() / 180) * 0.0015 + Math.sin(Date.now() / 290) * 0.001
+    : 0;
+  const currentTilt = tiltAngle + creakFlicker;
+
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      const lvl    = fillLevels[c][r];
+      const isTgt  = c === targetCol;
+      const isFire = (c === targetCol && r === FIRE_ROW);
+      const fireLevel2 = isFire ? fillLevels[targetCol][FIRE_ROW] : 0;
+      const fireIntensity = isFire ? Math.max(0, 1 - fireLevel2 / 60) : 0;
+
+      // Only boxes STRICTLY ABOVE fire box in target column get tilted
+      const shouldTilt = isTgt && r < FIRE_ROW && currentTilt > 0.001;
+
+      ctx.save();
+      if (shouldTilt) {
+        ctx.translate(pivotX2, pivotY2);
+        ctx.rotate(currentTilt);
+        ctx.translate(-pivotX2, -pivotY2);
+      }
+
+      const x = bL(c), y = bT(r);
+
+      // Box background
+      ctx.fillStyle = isTgt ? '#1e2d42' : '#18202e';
+      if (fireIntensity > 0) {
+        ctx.fillStyle = `rgba(${40 + fireIntensity*30}, ${18 + fireIntensity*8}, 10, 1)`;
+      }
+      rr(x, y, BOX_W, BOX_H, 3); ctx.fill();
+
+      ctx.save();
+      ctx.beginPath(); rr(x, y, BOX_W, BOX_H, 3); ctx.clip();
+
+      // Vertical ribs
+      ctx.strokeStyle='rgba(255,255,255,.028)'; ctx.lineWidth=1.5;
+      for (let rx2=x+11; rx2<x+BOX_W; rx2+=12) {
+        ctx.beginPath(); ctx.moveTo(rx2,y); ctx.lineTo(rx2,y+BOX_H); ctx.stroke();
+      }
+
+      // Water fill
+      if (lvl > 0) {
+        const wh = (lvl/100)*BOX_H;
+        const wy = y + BOX_H - wh;
+        const wv = Math.sin(Date.now()/480+c*.8)*1.8;
+        const wg = ctx.createLinearGradient(x,wy,x,y+BOX_H);
+        wg.addColorStop(0,'rgba(100,215,255,.28)');
+        wg.addColorStop(1,'rgba(0,155,255,.65)');
+        ctx.fillStyle = wg;
+        ctx.beginPath();
+        ctx.moveTo(x, wy+wv); ctx.lineTo(x+BOX_W, wy-wv);
+        ctx.lineTo(x+BOX_W, y+BOX_H); ctx.lineTo(x, y+BOX_H);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='rgba(160,240,255,.65)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(x+2,wy+wv); ctx.lineTo(x+BOX_W-2,wy-wv); ctx.stroke();
+      }
+
+      // Fire flames – drawn above water level, clipped to box
+      if (fireIntensity > 0) {
+        const now3 = Date.now();
+        const waterTopY = lvl > 0 ? (y + BOX_H - (lvl/100)*BOX_H) : (y + BOX_H);
+        const flameBaseY = waterTopY;
+        const flameH = (BOX_H * 0.85) * fireIntensity;
+
+        const tongues = 7;
+        for (let fi = 0; fi < tongues; fi++) {
+          const fx2 = x + 6 + (fi / (tongues-1)) * (BOX_W - 12);
+          const phase = fi * 1.3 + now3 / 160;
+          const flicker2 = Math.sin(phase) * 0.35 + Math.sin(phase * 2.1) * 0.2;
+          const tHeight = flameH * (0.5 + 0.5 * Math.abs(Math.sin(fi * 0.9 + now3/200))) * (0.75 + flicker2 * 0.25);
+          const tipX = fx2 + Math.sin(phase * 0.7) * 5 * fireIntensity;
+          const tipY = flameBaseY - tHeight;
+          const midX = fx2 + Math.sin(phase * 0.5) * 3;
+          const midY = flameBaseY - tHeight * 0.55;
+
+          const fg = ctx.createLinearGradient(fx2, flameBaseY, tipX, tipY);
+          fg.addColorStop(0,   `rgba(255,${80 + fi*8},0,${0.85 * fireIntensity})`);
+          fg.addColorStop(0.4, `rgba(255,${140 + fi*5},0,${0.75 * fireIntensity})`);
+          fg.addColorStop(0.75,`rgba(255,220,30,${0.55 * fireIntensity})`);
+          fg.addColorStop(1,   `rgba(255,255,120,0)`);
+          ctx.fillStyle = fg;
+          ctx.beginPath();
+          ctx.moveTo(fx2 - 5, flameBaseY);
+          ctx.quadraticCurveTo(midX - 3, midY, tipX, tipY);
+          ctx.quadraticCurveTo(midX + 3, midY, fx2 + 5, flameBaseY);
+          ctx.closePath();
+          ctx.fill();
+
+          if (fi % 2 === 0) {
+            const cg = ctx.createLinearGradient(fx2, flameBaseY, tipX, tipY);
+            cg.addColorStop(0,   `rgba(255,255,200,${0.6 * fireIntensity})`);
+            cg.addColorStop(0.5, `rgba(255,240,80,${0.35 * fireIntensity})`);
+            cg.addColorStop(1,   'rgba(255,255,255,0)');
+            ctx.fillStyle = cg;
+            ctx.beginPath();
+            ctx.moveTo(fx2 - 2.5, flameBaseY);
+            ctx.quadraticCurveTo(midX, midY + tHeight*0.1, tipX, tipY + tHeight*0.1);
+            ctx.quadraticCurveTo(midX, midY + tHeight*0.1, fx2 + 2.5, flameBaseY);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+
+        const baseGlow = ctx.createLinearGradient(x, flameBaseY - 8, x, flameBaseY);
+        baseGlow.addColorStop(0, `rgba(255,100,0,0)`);
+        baseGlow.addColorStop(1, `rgba(255,60,0,${0.55 * fireIntensity})`);
+        ctx.fillStyle = baseGlow;
+        ctx.fillRect(x, flameBaseY - 8, BOX_W, 8);
+
+        if (lvl > 20 && lvl < 80) {
+          const smokeAmt = Math.min(1, (lvl - 20) / 40) * fireIntensity;
+          for (let si = 0; si < 4; si++) {
+            const sx = x + 10 + si * (BOX_W-20)/3 + Math.sin(Date.now()/300 + si)*4;
+            const sy = waterTopY - 5 - si * 6;
+            const sr = (3 + si * 2) * smokeAmt;
+            const sa = 0.25 * smokeAmt * (1 - si*0.2);
+            ctx.fillStyle = `rgba(180,180,190,${sa})`;
+            ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
+          }
+        }
+      }
+
+      ctx.restore(); // end clip
+
+      // Border
+      ctx.save();
+      ctx.strokeStyle = isTgt && lvl>0 ? 'rgba(0,200,255,.45)'
+        : isTgt ? 'rgba(0,200,255,.22)' : '#252f40';
+      if (fireIntensity > 0) {
+        ctx.strokeStyle = `rgba(255,${100+fireIntensity*80},0,${0.6+fireIntensity*0.35})`;
+        ctx.shadowColor = `rgba(255,80,0,${fireIntensity * 0.8})`;
+        ctx.shadowBlur  = 14 * fireIntensity;
+      }
+      ctx.lineWidth=1.5; rr(x,y,BOX_W,BOX_H,3); ctx.stroke();
+      ctx.restore(); // fully resets shadowColor, shadowBlur, everything
+
+      ctx.fillStyle='rgba(255,255,255,.1)';
+      ctx.font='7px Share Tech Mono,monospace'; ctx.textAlign='right';
+      ctx.fillText(`C${c+1}·R${r+1}`, x+BOX_W-4, y+BOX_H-4);
+
+      ctx.restore(); // end tilt transform
+
+      // ── Contact pressure indicator on right neighbour ─────────
+      // When tilted boxes press against right neighbour at fire row level
+      if (isTgt && r < FIRE_ROW && currentTilt > 0.02) {
+        const pressAlpha = Math.min(0.45, currentTilt * 7);
+        if (c + 1 < COLS) {
+          const nx = bL(c + 1), ny = bT(r);
+          ctx.strokeStyle = `rgba(255,160,60,${pressAlpha})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(nx, ny + BOX_H * 0.15);
+          ctx.lineTo(nx, ny + BOX_H * 0.85);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  // Target indicator arrow
+  const ax = bCX(targetCol), ay = RAIL_Y - 2;
+  ctx.fillStyle='rgba(0,200,255,.55)';
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax-7,ay-10); ctx.lineTo(ax+7,ay-10); ctx.closePath(); ctx.fill();
+}
+
+// ── Jet arc ───────────────────────────────────────────────────
+function drawJetArc(j) {
+  const N = 80;
+  const passes = [
+    { lw:(f)=>7*(1-f*.5),   color:(f,sh)=>`rgba(0,160,255,${.07+sh*.04})` },
+    { lw:(f)=>3.8*(1-f*.4), color:(f,sh)=>`rgba(0,${155+sh*65},255,${.48+sh*.15})` },
+    { lw:(f)=>1.8*(1-f*.3), color:(f,sh)=>`rgba(${150+sh*90},${228+sh*22},255,${.82+sh*.14})` },
+  ];
+
+  for (const pass of passes) {
+    ctx.save(); ctx.lineCap='round';
+    for (let i = 0; i < N; i++) {
+      const t0=i/N*j.T, t1=(i+1)/N*j.T;
+      const p0=jetPt(t0,j), p1=jetPt(t1,j);
+      const frac=i/N;
+      const sh=Math.sin(frac*22-Date.now()/75)*0.5+0.5;
+      ctx.lineWidth=pass.lw(frac);
+      ctx.strokeStyle=pass.color(frac,sh);
+      ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Impact splash glow
+  const ip = jetPt(j.T, j);
+  const ig = ctx.createRadialGradient(ip.x,ip.y,0,ip.x,ip.y,20);
+  ig.addColorStop(0,'rgba(160,238,255,.7)'); ig.addColorStop(.5,'rgba(0,175,255,.25)'); ig.addColorStop(1,'rgba(0,80,200,0)');
+  ctx.fillStyle=ig; ctx.beginPath(); ctx.arc(ip.x,ip.y,20,0,Math.PI*2); ctx.fill();
+}
+
+// ── Wall-film carpet renderer ─────────────────────────────────
+// The film always starts at the first overflowing box and runs
+// continuously to the very bottom of the grid – regardless of how
+// full the lower boxes are. Water keeps flowing from above.
+function drawOverflow() {
+  const c = targetCol;
+  const now = Date.now();
+
+  // Find the topmost overflowing box
+  let filmStartRow = -1;
+  for (let r = 0; r < ROWS; r++) {
+    if (fillLevels[c][r] >= OVERFLOW_THR) { filmStartRow = r; break; }
+  }
+  if (filmStartRow < 0) return;
+
+  // If ALL boxes are full and sim is done, only show static puddle – no film
+  const allFull = fillLevels[c].every(l => l >= 99.5);
+
+  const x  = bL(c);
+  const y0 = bT(filmStartRow);
+  const y1 = bT(ROWS - 1) + BOX_H;
+  const filmHeight = y1 - y0;
+  if (filmHeight <= 0) return;
+
+  ctx.save(); // ← isolate ALL overflow drawing state
+
+  if (!allFull) {
+    // ── Side face films
+    for (const side of ['left', 'right']) {
+      const fx      = side === 'left' ? x + 2 : x + BOX_W - 2;
+      const wobBase = side === 'left' ? 1 : -1;
+
+      const baseGrad = ctx.createLinearGradient(fx, y0, fx, y1);
+      baseGrad.addColorStop(0,    'rgba(0,190,255,0.80)');
+      baseGrad.addColorStop(0.25, 'rgba(0,175,255,0.68)');
+      baseGrad.addColorStop(0.55, 'rgba(0,155,255,0.48)');
+      baseGrad.addColorStop(0.8,  'rgba(0,135,255,0.28)');
+      baseGrad.addColorStop(1,    'rgba(0,115,255,0.10)');
+      ctx.strokeStyle = baseGrad;
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(fx, y0);
+      for (let yy = y0; yy <= y1; yy += 3) {
+        const progress = (yy - y0) / filmHeight;
+        const wob = wobBase * Math.sin(now/120 + yy/18) * (2.5 + progress * 1.8);
+        ctx.lineTo(fx + wob, yy);
+      }
+      ctx.stroke();
+
+      const coreGrad = ctx.createLinearGradient(fx, y0, fx, y1);
+      coreGrad.addColorStop(0,    'rgba(210,248,255,0.95)');
+      coreGrad.addColorStop(0.2,  'rgba(120,225,255,0.80)');
+      coreGrad.addColorStop(0.5,  'rgba(0,185,255,0.55)');
+      coreGrad.addColorStop(0.75, 'rgba(0,160,255,0.28)');
+      coreGrad.addColorStop(1,    'rgba(0,135,255,0.06)');
+      ctx.strokeStyle = coreGrad;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(fx, y0);
+      for (let yy = y0; yy <= y1; yy += 3) {
+        const progress = (yy - y0) / filmHeight;
+        const wob = wobBase * Math.sin(now/95 + yy/13 + 1.2) * (1.2 + progress * 0.9);
+        ctx.lineTo(fx + wob, yy);
+      }
+      ctx.stroke();
+    }
+
+    // ── Gap drips between all boxes from filmStartRow to bottom
+    for (let gr = filmStartRow; gr < ROWS - 1; gr++) {
+      const gapY   = bT(gr) + BOX_H;
+      const gapMid = bL(c) + BOX_W / 2;
+      const wob    = Math.sin(now/90 + gr * 1.4) * 2.5;
+      const gapGrad = ctx.createLinearGradient(gapMid, gapY, gapMid, gapY + GAP);
+      gapGrad.addColorStop(0, 'rgba(0,185,255,0.55)');
+      gapGrad.addColorStop(1, 'rgba(0,160,255,0.18)');
+      ctx.strokeStyle = gapGrad;
+      ctx.lineWidth   = 2.8 + Math.sin(now/80) * 0.7;
+      ctx.lineCap     = 'round';
+      ctx.beginPath();
+      ctx.moveTo(gapMid + wob, gapY);
+      ctx.quadraticCurveTo(gapMid + wob * 1.5, gapY + GAP / 2, gapMid, gapY + GAP);
+      ctx.stroke();
+    }
+  }
+
+  // ── Floor puddle – appears as soon as film first hits the floor,
+  // grows continuously until sim ends, independent of bottom box fill level
+  if (!filmReachedFloorTime) { ctx.restore(); return; }
+
+  const floorY      = bT(ROWS - 1) + BOX_H;
+  const colCX       = bL(c) + BOX_W / 2;
+  const floorElapsed = (Date.now() - filmReachedFloorTime) / 1000;
+
+  // Puddle grows over ~15 seconds from first floor contact to full size
+  // Also gets a small extra boost from the bottom box filling
+  const timeGrow    = Math.min(1, floorElapsed / 15);
+  const fillBoost   = fillLevels[c][ROWS - 1] / 100 * 0.3;
+  const puddleGrow  = Math.min(1, timeGrow + fillBoost);
+
+  const maxHalfW  = BOX_W * 2.2;
+  const halfW     = maxHalfW * puddleGrow + Math.sin(now / 500) * 2.5;
+  const puddleH   = 4 + puddleGrow * 8 + Math.sin(now / 350) * 1;
+  if (halfW < 2) { ctx.restore(); return; }
+
+  // Shadow
+  ctx.beginPath();
+  ctx.ellipse(colCX, floorY + puddleH + 3, halfW * 0.82, 3.5, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.fill();
+
+  // Puddle body
+  const pg = ctx.createRadialGradient(colCX, floorY + puddleH * 0.4, 0, colCX, floorY + puddleH * 0.4, halfW);
+  pg.addColorStop(0,    'rgba(110,215,255,0.60)');
+  pg.addColorStop(0.35, 'rgba(0,175,255,0.48)');
+  pg.addColorStop(0.7,  'rgba(0,145,255,0.22)');
+  pg.addColorStop(1,    'rgba(0,110,200,0)');
+  ctx.beginPath();
+  ctx.ellipse(colCX, floorY + puddleH * 0.5, halfW, puddleH, 0, 0, Math.PI * 2);
+  ctx.fillStyle = pg;
+  ctx.fill();
+
+  // Surface shimmer lines
+  for (let si = 0; si < 4; si++) {
+    const sw = halfW * (0.25 + si * 0.22);
+    const sy = floorY + puddleH * (0.18 + si * 0.16);
+    const sa = (0.38 - si * 0.08) * puddleGrow;
+    ctx.strokeStyle = `rgba(165,238,255,${sa})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(colCX + Math.sin(now / 700 + si) * 3, sy, sw, 1.6, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Impact ripples – only while water is still flowing
+  if (!allFull) {
+    for (const side of [-1, 1]) {
+      const ripX   = colCX + side * (BOX_W * 0.32);
+      const ripAge = ((now / 900) + (side > 0 ? 0.5 : 0)) % 1;
+      const ripR   = ripAge * 14 * puddleGrow;
+      const ripA   = (1 - ripAge) * 0.4 * puddleGrow;
+      ctx.strokeStyle = `rgba(0,195,255,${ripA})`;
+      ctx.lineWidth   = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(ripX, floorY + puddleH * 0.38, ripR, ripR * 0.32, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore(); // ← restores ALL state changed in this function
+}
+
+// ── Particles ─────────────────────────────────────────────────
+function drawParticles() {
+  for (const p of particles) {
+    const lifeRatio = p.life / p.maxLife;
+    if (p.film) {
+      // Render as vertical water streak (wall film droplet)
+      const a = lifeRatio * 0.5;
+      const streakLen = p.filmH * lifeRatio * 0.6;
+      const grad = ctx.createLinearGradient(p.x, p.y, p.x + p.vx*0.04, p.y + streakLen);
+      grad.addColorStop(0, `rgba(120,220,255,${a * 0.85})`);
+      grad.addColorStop(0.5, `rgba(0,175,255,${a})`);
+      grad.addColorStop(1, `rgba(0,145,255,0)`);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = p.r;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + p.vx * 0.04, p.y + streakLen);
+      ctx.stroke();
+    } else {
+      const a = lifeRatio * 0.65;
+      const t = 1 - lifeRatio;
+      ctx.fillStyle = `rgba(${80+t*120},${200+t*35},255,${a})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * lifeRatio, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+}
+function drawSplash() {
+  for (const s of splashPts) {
+    ctx.fillStyle=`rgba(155,235,255,${(s.life/s.maxLife)*.55})`;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DRAW MONITOR  –  sits ON the rail, top-center of grid
+//  Barrel rotates around pivot, aiming in direction barrelAngle
+// ═══════════════════════════════════════════════════════════════
+function drawMonitor(active) {
+  const cx = pivotX();
+  const cy = pivotY();
+
+  // Hard-reset any shadow state that may have leaked from fire rendering
+  ctx.shadowBlur   = 0;
+  ctx.shadowColor  = 'transparent';
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.globalAlpha  = 1;
+
+  ctx.save();
+
+  // ── Mounting foot (clamped to rail) ──────────────────
+  const footW=22, footH=14;
+  const fg=ctx.createLinearGradient(cx-footW/2,cy+6,cx-footW/2,cy+6+footH);
+  fg.addColorStop(0,'#4a5a6a'); fg.addColorStop(1,'#1e2c3c');
+  ctx.fillStyle=fg;
+  rr(cx-footW/2, cy+8, footW, footH, 3); ctx.fill();
+  ctx.strokeStyle='#3a4a5c'; ctx.lineWidth=.9;
+  rr(cx-footW/2, cy+8, footW, footH, 3); ctx.stroke();
+  // Clamp bolts
+  ctx.fillStyle='#8a9aaa';
+  for (const bx of [cx-7, cx+7]) {
+    ctx.beginPath(); ctx.arc(bx, cy+15, 2.2, 0, Math.PI*2); ctx.fill();
+  }
+
+  // ── Vertical riser ────────────────────────────────────
+  const riserH=18, riserW=10;
+  const rg2=ctx.createLinearGradient(cx-riserW/2,0,cx+riserW/2,0);
+  rg2.addColorStop(0,'#1e2c3c'); rg2.addColorStop(.45,'#3e4e60'); rg2.addColorStop(1,'#1a2838');
+  ctx.fillStyle=rg2;
+  rr(cx-riserW/2, cy-riserH+8, riserW, riserH, 2); ctx.fill();
+  ctx.strokeStyle='#3a4858'; ctx.lineWidth=.8;
+  rr(cx-riserW/2, cy-riserH+8, riserW, riserH, 2); ctx.stroke();
+
+  // ── Swivel hub ────────────────────────────────────────
+  const hubR=13;
+  const hg=ctx.createRadialGradient(cx-3,cy-3,2,cx,cy,hubR);
+  hg.addColorStop(0,'#5a6a7a'); hg.addColorStop(.55,'#2c3c4e'); hg.addColorStop(1,'#131d2b');
+  ctx.fillStyle=hg;
+  ctx.beginPath(); ctx.arc(cx,cy,hubR,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#4a5a6c'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(cx,cy,hubR,0,Math.PI*2); ctx.stroke();
+  // Inner detail
+  ctx.fillStyle='#1a2538';
+  ctx.beginPath(); ctx.arc(cx,cy,6,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#384858'; ctx.lineWidth=.9;
+  ctx.beginPath(); ctx.arc(cx,cy,6,0,Math.PI*2); ctx.stroke();
+  // Center pin
+  ctx.fillStyle='#6a7a88';
+  ctx.beginPath(); ctx.arc(cx,cy,2.8,0,Math.PI*2); ctx.fill();
+
+  // ── Barrel (rotates) ─────────────────────────────────
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(barrelAngle);
+
+  const bLen=60, bR=5.5;   // BARREL_LEN, must match BARREL_TOTAL above
+
+  // Shadow
+  ctx.shadowColor='rgba(0,0,0,.55)'; ctx.shadowBlur=7; ctx.shadowOffsetY=2;
+
+  // Barrel tube
+  const bbg=ctx.createLinearGradient(0,-bR,0,bR);
+  bbg.addColorStop(0,'#4e5e6e'); bbg.addColorStop(.35,'#2e3e50');
+  bbg.addColorStop(.65,'#1a2838'); bbg.addColorStop(1,'#0e1820');
+  ctx.fillStyle=bbg;
+  rr(0,-bR,bLen,bR*2,bR); ctx.fill();
+  ctx.shadowBlur=0; ctx.shadowOffsetY=0; ctx.shadowColor='transparent';
+  ctx.strokeStyle='#3a4a5c'; ctx.lineWidth=.8; rr(0,-bR,bLen,bR*2,bR); ctx.stroke();
+
+  // Highlight
+  ctx.fillStyle='rgba(160,190,220,.1)';
+  ctx.beginPath(); ctx.ellipse(bLen*.44,-bR+1.5,bLen*.38,1.3,0,0,Math.PI*2); ctx.fill();
+
+  // Band rings
+  for (const bx of [13,28,44]) {
+    const rng=ctx.createLinearGradient(0,-bR-1,0,bR+1);
+    rng.addColorStop(0,'#5a6a7a'); rng.addColorStop(1,'#1e2c3c');
+    ctx.fillStyle=rng;
+    ctx.beginPath(); ctx.roundRect(bx-2,-bR-1,4,bR*2+2,1); ctx.fill();
+  }
+
+  // Nozzle cone  (length = NOZZLE_LEN = 13)
+  const ns=bLen, nl=13;
+  const ng2=ctx.createLinearGradient(0,-bR,0,bR);
+  ng2.addColorStop(0,'#485868'); ng2.addColorStop(1,'#141e2c');
+  ctx.fillStyle=ng2;
+  ctx.beginPath();
+  ctx.moveTo(ns,-bR); ctx.lineTo(ns+nl,-bR+3); ctx.lineTo(ns+nl,bR-3); ctx.lineTo(ns,bR);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#384858'; ctx.lineWidth=.7; ctx.stroke();
+
+  // Nozzle TIP OPENING – exactly at x = ns+nl = BARREL_TOTAL from pivot
+  const ntip = ns + nl;   // = 73px from pivot = BARREL_TOTAL
+  if (active) {
+    // Outer glow ring
+    ctx.shadowColor='#00ccff'; ctx.shadowBlur=22;
+    ctx.fillStyle='rgba(0,200,255,.35)';
+    ctx.beginPath(); ctx.arc(ntip, 0, bR+2, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    // Inner bright opening
+    ctx.fillStyle='rgba(0,210,255,.9)';
+    ctx.beginPath(); ctx.arc(ntip, 0, bR-3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(200,248,255,.85)';
+    ctx.beginPath(); ctx.arc(ntip, 0, bR-4.5, 0, Math.PI*2); ctx.fill();
+    // Water exit jet flash (short bright streak just past tip)
+    ctx.save();
+    const jg = ctx.createLinearGradient(ntip,0,ntip+10,0);
+    jg.addColorStop(0,'rgba(200,248,255,.8)');
+    jg.addColorStop(1,'rgba(0,200,255,0)');
+    ctx.fillStyle=jg;
+    ctx.beginPath(); ctx.ellipse(ntip+5, 0, 10, 2.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  } else {
+    ctx.fillStyle='#0c1820';
+    ctx.beginPath(); ctx.arc(ntip, 0, bR-3, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#2a3848'; ctx.lineWidth=.8;
+    ctx.beginPath(); ctx.arc(ntip, 0, bR-3, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // Actuator arm (top brace)
+  ctx.strokeStyle='#2e3e50'; ctx.lineWidth=4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(10,-bR-1); ctx.lineTo(10,-bR-7); ctx.stroke();
+  ctx.strokeStyle='rgba(70,100,130,.5)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(10,-bR-1); ctx.lineTo(10,-bR-7); ctx.stroke();
+
+  ctx.restore(); // end barrel rotation
+
+  // ── Control box (side-mounted) ────────────────────────
+  const cbx=cx+hubR+2, cby=cy-17, cbw=18, cbh=13;
+  const cbg=ctx.createLinearGradient(cbx,cby,cbx,cby+cbh);
+  cbg.addColorStop(0,'#c5cdd6'); cbg.addColorStop(1,'#868e98');
+  ctx.fillStyle=cbg; rr(cbx,cby,cbw,cbh,2); ctx.fill();
+  ctx.strokeStyle='#767e88'; ctx.lineWidth=.8; rr(cbx,cby,cbw,cbh,2); ctx.stroke();
+  // LED
+  ctx.fillStyle=active?'#00ff88':'#333';
+  if (active) { ctx.shadowColor='#00ff88'; ctx.shadowBlur=6; }
+  ctx.beginPath(); ctx.arc(cbx+5,cby+6.5,2.3,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  // Vents
+  ctx.strokeStyle='rgba(0,0,0,.22)'; ctx.lineWidth=.8;
+  for (let vi=0;vi<3;vi++) {
+    ctx.beginPath(); ctx.moveTo(cbx+11,cby+3+vi*4); ctx.lineTo(cbx+16,cby+3+vi*4); ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STATS / UTILS
+// ═══════════════════════════════════════════════════════════════
+function updateStats() {
+  let filled=0, total=0;
+  for (let r=0;r<ROWS;r++) { total+=fillLevels[targetCol][r]; if(fillLevels[targetCol][r]>=99)filled++; }
+  const avg=Math.round(total/ROWS);
+  document.getElementById('statBoxes').textContent=`${filled} / ${ROWS}`;
+  document.getElementById('statLevel').textContent=avg+'%';
+  document.getElementById('floodBar').style.width=avg+'%';
+}
+
+function rr(x,y,w,h,r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.arcTo(x+w,y,x+w,y+r,r); ctx.lineTo(x+w,y+h-r);
+  ctx.arcTo(x+w,y+h,x+w-r,y+h,r); ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r); ctx.lineTo(x,y+r);
+  ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+initState();
+barrelAngle = computeJet(targetCol).angle;
+drawFrame(false, null);
+</script>
+</body>
+</html>
